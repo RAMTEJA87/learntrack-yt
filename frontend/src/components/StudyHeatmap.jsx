@@ -13,7 +13,7 @@ const StudyHeatmap = ({ playlistId = null }) => {
             try {
                 // Pass playlistId if it exists
                 const params = playlistId ? { playlistId } : {};
-                const res = await api.get('/progress/heatmap', { params });
+                const res = await api.get('/api/progress/heatmap', { params });
                 setData(res.data);
             } catch (error) {
                 console.error('Failed to fetch heatmap', error);

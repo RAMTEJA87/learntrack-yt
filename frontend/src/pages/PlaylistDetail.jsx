@@ -16,7 +16,7 @@ const PlaylistDetail = () => {
 
     const fetchPlaylist = async () => {
         try {
-            const { data } = await api.get(`/playlists/${id}`);
+            const { data } = await api.get(`/api/playlists/${id}`);
             setPlaylist(data);
             // Auto-select first uncompleted video
             if (data.videos.length > 0) {
@@ -53,7 +53,7 @@ const PlaylistDetail = () => {
         }));
 
         try {
-            await api.post('/progress', {
+            await api.post('/api/progress', {
                 playlistId: id,
                 videoId,
                 status: newStatus
@@ -66,7 +66,7 @@ const PlaylistDetail = () => {
     const handleDelete = async () => {
         if (confirm('Are you sure you want to delete this playlist?')) {
             try {
-                await api.delete(`/playlists/${id}`);
+                await api.delete(`/api/playlists/${id}`);
                 navigate('/');
             } catch (error) {
                 alert('Error deleting playlist');

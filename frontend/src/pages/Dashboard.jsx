@@ -13,7 +13,7 @@ const Dashboard = () => {
 
     const fetchPlaylists = async () => {
         try {
-            const { data } = await api.get('/playlists');
+            const { data } = await api.get('/api/playlists');
             setPlaylists(data);
         } catch (error) {
             console.error(error);
@@ -30,7 +30,7 @@ const Dashboard = () => {
         e.preventDefault();
         setLoading(true);
         try {
-            await api.post('/playlists', { url: newUrl });
+            await api.post('/api/playlists', { url: newUrl });
             setNewUrl('');
             fetchPlaylists();
         } catch (error) {
