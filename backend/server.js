@@ -10,31 +10,16 @@ dotenv.config();
 const app = express();
 
 // Middleware
-app.use(express.json());
 app.use(cors({
-    origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
-        if (!origin) return callback(null, true);
-
-        // Allow any localhost origin for development
-        if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
-            return callback(null, true);
-        }
-
-        // Allow Production Client
-        if (process.env.CLIENT_URL && origin === process.env.CLIENT_URL) {
-            return callback(null, true);
-        }
-
-        // Allow specific production domains
-        if (origin === process.env.CLIENT_URL) {
-            return callback(null, true);
-        }
-
-        callback(new Error('Not allowed by CORS'));
-    },
+    origin: [
+        "https://learntrack-yt.vercel.app",
+        "http://localhost:5173"
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true
 }));
+
+app.use(express.json());
 app.use(helmet());
 app.use(morgan('dev'));
 
