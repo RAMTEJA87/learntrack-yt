@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-background text-white antialiased;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-white/5 backdrop-blur-lg border border-white/10;
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 hover:translate-y-[-2px] hover:shadow-xl hover:shadow-primary/10;
+  }
+}
