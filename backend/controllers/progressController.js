@@ -1,4 +1,6 @@
 const Progress = require('../models/Progress');
+const User = require('../models/User');
+const Playlist = require('../models/Playlist');
 
 exports.updateProgress = async (req, res) => {
     const { playlistId, videoId, status } = req.body;
@@ -13,6 +15,26 @@ exports.updateProgress = async (req, res) => {
             { status, updatedAt: Date.now() },
             { new: true, upsert: true } // Create if doesn't exist
         );
+
+        // Update User's last active video
+        if (status !== 'NOT_STARTED') {
+            const playlist = await Playlist.findById(playlistId);
+            if (playlist) {
+                const video = playlist.videos.find(v => v.videoId === videoId);
+                if (video) {
+                    await User.findByIdAndUpdate(req.user._id, {
+                        lastActiveVideo: {
+                            playlistId,
+                            videoId,
+                            title: video.title,
+                            thumbnail: video.thumbnail,
+                            timestamp: Date.now()
+                        }
+                    });
+                }
+            }
+        }
+
         res.json(progress);
     } catch (error) {
         res.status(500).json({ message: error.message });

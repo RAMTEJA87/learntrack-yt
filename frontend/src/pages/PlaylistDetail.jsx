@@ -1,15 +1,19 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import YouTube from 'react-youtube';
 import api from '../utils/api';
 import ProgressBar from '../components/ProgressBar';
 import StudyHeatmap from '../components/StudyHeatmap';
+import NotesSection from '../components/NotesSection';
 import { CheckCircle, Circle, Trash2, ArrowLeft, Play } from 'lucide-react';
 import { clsx } from 'clsx';
 
 const PlaylistDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const initialVideoId = searchParams.get('videoId');
+
     const [playlist, setPlaylist] = useState(null);
     const [loading, setLoading] = useState(true);
     const [activeVideoId, setActiveVideoId] = useState(null);
@@ -20,8 +24,12 @@ const PlaylistDetail = () => {
             setPlaylist(data);
             // Auto-select first uncompleted video
             if (data.videos.length > 0) {
-                const firstUnfinished = data.videos.find(v => v.status !== 'COMPLETED');
-                setActiveVideoId(firstUnfinished ? firstUnfinished.videoId : data.videos[0].videoId);
+                if (initialVideoId && data.videos.some(v => v.videoId === initialVideoId)) {
+                    setActiveVideoId(initialVideoId);
+                } else {
+                    const firstUnfinished = data.videos.find(v => v.status !== 'COMPLETED');
+                    setActiveVideoId(firstUnfinished ? firstUnfinished.videoId : data.videos[0].videoId);
+                }
             }
         } catch (error) {
             console.error(error);
@@ -117,7 +125,7 @@ const PlaylistDetail = () => {
                                     width: '100%',
                                     height: '100%',
                                     playerVars: {
-                                        autoplay: 1,
+                                        autoplay: 0,
                                     },
                                 }}
                                 className="w-full h-full"
@@ -146,6 +154,11 @@ const PlaylistDetail = () => {
 
                     {/* Simple Playlist-Specific Heatmap */}
                     <StudyHeatmap playlistId={id} />
+
+                    {/* Notes Section */}
+                    {activeVideoId && (
+                        <NotesSection playlistId={id} videoId={activeVideoId} />
+                    )}
                 </div>
 
                 {/* Right Column: Playlist & Progress */}

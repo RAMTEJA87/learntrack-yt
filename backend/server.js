@@ -37,10 +37,12 @@ app.get('/', (req, res) => {
 const authRoutes = require('./routes/authRoutes');
 const playlistRoutes = require('./routes/playlistRoutes');
 const progressRoutes = require('./routes/progressRoutes');
+const noteRoutes = require('./routes/noteRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/playlists', playlistRoutes);
 app.use('/api/progress', progressRoutes);
+app.use('/api/notes', noteRoutes);
 
 
 const PORT = process.env.PORT || 5000;
