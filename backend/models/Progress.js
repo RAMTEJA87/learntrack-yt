@@ -15,4 +15,7 @@ const progressSchema = new mongoose.Schema({
 // Ensure a user has only one progress record per video per playlist
 progressSchema.index({ user: 1, playlist: 1, videoId: 1 }, { unique: true });
 
+// Optimize for Dashboard Statistics (counting completed videos per playlist)
+progressSchema.index({ user: 1, playlist: 1, status: 1 });
+
 module.exports = mongoose.model('Progress', progressSchema);

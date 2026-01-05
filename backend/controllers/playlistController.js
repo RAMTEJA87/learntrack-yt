@@ -197,20 +197,40 @@ exports.addPlaylist = async (req, res) => {
 // Get All Playlists for User
 exports.getPlaylists = async (req, res) => {
     try {
-        const playlists = await Playlist.find({ user: req.user._id }).sort({ importedAt: -1 });
+        const playlists = await Playlist.aggregate([
+            { $match: { user: req.user._id } },
+            { $sort: { importedAt: -1 } },
+            {
+                $lookup: {
+                    from: 'progresses', // Ensure this matches your collection name (usually lowercase plural of model)
+                    let: { playlistId: '$_id' },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        { $eq: ['$playlist', '$$playlistId'] },
+                                        { $eq: ['$user', req.user._id] }, // Ensure we only count OUR progress
+                                        { $eq: ['$status', 'COMPLETED'] }
+                                    ]
+                                }
+                            }
+                        },
+                        { $count: 'count' }
+                    ],
+                    as: 'progress_data'
+                }
+            },
+            {
+                $addFields: {
+                    completedCount: { $ifNull: [{ $arrayElemAt: ['$progress_data.count', 0] }, 0] }
+                }
+            }
+        ]);
 
-        // Calculate progress for each playlist to show on dashboard (summary)
-        const playlistsWithProgress = await Promise.all(playlists.map(async (pl) => {
-            const completedCount = await Progress.countDocuments({
-                user: req.user._id,
-                playlist: pl._id,
-                status: 'COMPLETED'
-            });
-            return {
-                ...pl.toObject(),
-                completedCount,
-                percent: pl.videoCount > 0 ? Math.round((completedCount / pl.videoCount) * 100) : 0
-            };
+        const playlistsWithProgress = playlists.map(pl => ({
+            ...pl,
+            percent: pl.videoCount > 0 ? Math.round((pl.completedCount / pl.videoCount) * 100) : 0
         }));
 
         res.json(playlistsWithProgress);

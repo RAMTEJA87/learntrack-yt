@@ -1,10 +1,19 @@
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { LogOut, Home } from 'lucide-react';
+import MiniPlayer from './MiniPlayer';
 
 const Layout = ({ children }) => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
+
+    const [miniVideo, setMiniVideo] = useState(null);
+
+    useEffect(() => {
+        window.showMiniPlayer = (video) => setMiniVideo(video);
+        return () => { try { delete window.showMiniPlayer; } catch (e) {} };
+    }, []);
 
     const handleLogout = () => {
         logout();
@@ -47,6 +56,14 @@ const Layout = ({ children }) => {
                 </button>
                 {/* Could add more tabs like 'Profile' or 'Search' */}
             </div>
+
+            <MiniPlayer
+                video={miniVideo}
+                onClose={() => setMiniVideo(null)}
+                onNext={() => {}}
+                onPrev={() => {}}
+                onTogglePlay={() => {}}
+            />
         </div>
     );
 };
