@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import YouTube from 'react-youtube';
 import api from '../utils/api';
@@ -17,6 +17,10 @@ const PlaylistDetail = () => {
     const [playlist, setPlaylist] = useState(null);
     const [loading, setLoading] = useState(true);
     const [activeVideoId, setActiveVideoId] = useState(null);
+
+    // refs for scrolling to the active item
+    const listRef = useRef(null);
+    const itemRefs = useRef({});
 
     const fetchPlaylist = async () => {
         try {
@@ -41,6 +45,83 @@ const PlaylistDetail = () => {
     useEffect(() => {
         fetchPlaylist();
     }, [id]);
+
+    // scroll to active video whenever playlist loads or activeVideoId changes
+    useEffect(() => {
+        if (!playlist || !activeVideoId) return;
+
+        const idx = playlist.videos.findIndex(v => v.videoId === activeVideoId);
+
+        const attemptScroll = () => {
+            const el = itemRefs.current[idx];
+            const container = listRef.current;
+            if (!el || !container) return false;
+
+            // compute exact scroll position using getBoundingClientRect to avoid layout shifts
+            const elRect = el.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+
+            // delta: how many pixels the element is below the top of the container's viewport
+            const delta = elRect.top - containerRect.top;
+
+            // target scrollTop that puts the element at the very top of the container
+            const target = Math.max(0, container.scrollTop + delta);
+
+            // apply scroll (snap first to avoid overshoot, then smooth adjust)
+            try {
+                container.scrollTo({ top: target, behavior: 'auto' });
+            } catch {
+                container.scrollTop = target;
+            }
+
+            return true;
+        };
+
+        // Try immediately; if refs not attached yet, retry a couple times
+        if (!attemptScroll()) {
+            const t1 = setTimeout(() => attemptScroll(), 80);
+            const t2 = setTimeout(() => {
+                if (attemptScroll()) {
+                    // smooth adjustment after layout/images finish loading
+                    const el = itemRefs.current[idx];
+                    const container = listRef.current;
+                    if (el && container) {
+                        const elRect = el.getBoundingClientRect();
+                        const containerRect = container.getBoundingClientRect();
+                        const delta = elRect.top - containerRect.top;
+                        const target = Math.max(0, container.scrollTop + delta);
+                        try {
+                            container.scrollTo({ top: target, behavior: 'smooth' });
+                        } catch {
+                            container.scrollTop = target;
+                        }
+                    }
+                }
+            }, 220);
+            return () => {
+                clearTimeout(t1);
+                clearTimeout(t2);
+            };
+        } else {
+            // ensure a final smooth tweak after a short delay to account for image/font load shifts
+            const t = setTimeout(() => {
+                const el = itemRefs.current[idx];
+                const container = listRef.current;
+                if (el && container) {
+                    const elRect = el.getBoundingClientRect();
+                    const containerRect = container.getBoundingClientRect();
+                    const delta = elRect.top - containerRect.top;
+                    const target = Math.max(0, container.scrollTop + delta);
+                    try {
+                        container.scrollTo({ top: target, behavior: 'smooth' });
+                    } catch {
+                        container.scrollTop = target;
+                    }
+                }
+            }, 180);
+            return () => clearTimeout(t);
+        }
+    }, [playlist, activeVideoId]);
 
     const handleVideoEnd = async () => {
         if (activeVideoId) {
@@ -179,20 +260,19 @@ const PlaylistDetail = () => {
                     </div>
 
                     {/* Video List (Scrollable) */}
-                    <div className="flex-1 overflow-y-auto pr-2 space-y-2 custom-scrollbar">
+                    <div ref={listRef} className="flex-1 overflow-y-auto pr-2 space-y-2 custom-scrollbar">
                         {playlist.videos.map((video, idx) => (
                             <div
                                 key={video.videoId}
+                                ref={(el) => (itemRefs.current[idx] = el)}
                                 className={clsx(
                                     "group flex items-center gap-3 p-3 rounded-xl border transition-all duration-200 cursor-pointer hover:bg-white/5",
                                     activeVideoId === video.videoId ? "bg-white/10 border-primary/50" : "bg-transparent border-transparent",
                                     video.status === 'COMPLETED' && activeVideoId !== video.videoId ? "opacity-60" : "opacity-100"
                                 )}
+                                onClick={() => setActiveVideoId(video.videoId)}
                             >
-                                <div
-                                    className="relative w-24 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-black"
-                                    onClick={() => setActiveVideoId(video.videoId)}
-                                >
+                                <div className="relative w-24 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-black">
                                     <img src={video.thumbnail} className="w-full h-full object-cover" />
                                     {activeVideoId === video.videoId && (
                                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
@@ -201,10 +281,7 @@ const PlaylistDetail = () => {
                                     )}
                                 </div>
 
-                                <div
-                                    className="flex-1 min-w-0"
-                                    onClick={() => setActiveVideoId(video.videoId)}
-                                >
+                                <div className="flex-1 min-w-0">
                                     <h4 className={clsx("text-sm font-medium truncate", activeVideoId === video.videoId ? "text-primary" : "text-white")}>
                                         {idx + 1}. {video.title}
                                     </h4>
