@@ -1,31 +1,101 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import api from "../utils/api";
 import { useProgress } from "../contexts/ProgressContext";
 
 const PlaylistPage = () => {
   const { id } = useParams();
-  const { getProgress, markProgress, getNextVideoIndex } = useProgress();
+  const { getProgress, markProgress } = useProgress();
   const [pl, setPl] = useState(null);
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(null); // start as null until computed
+  const listRef = useRef(null);
+  const itemRefs = useRef({});
+
+  const findFirstUncompleted = (playlistLength) => {
+    const prog = getProgress(id) || {};
+    const vids = prog.videos || [];
+    for (let i = 0; i < playlistLength; i++) {
+      if (!vids[i] || !vids[i].completed) return i;
+    }
+    // all completed -> start at last item (or 0). Here pick last + 1 fallback to 0
+    return playlistLength > 0 ? playlistLength - 1 : 0;
+  };
 
   useEffect(() => {
     const fetch = async () => {
       const { data } = await api.get(`/api/playlists/${id}`);
       setPl(data);
-      const next = getNextVideoIndex(id, data.videos?.length || 0);
+      itemRefs.current = {};
+
+      // try to compute index immediately, but if progress may still be loading
+      // retry a few times (short delays) to allow ProgressContext to populate
+      const maxRetries = 8;
+      let next = findFirstUncompleted(data.videos?.length || 0);
+      if (next === 0) {
+        // only retry if progress appears empty/partial (avoid unnecessary waits)
+        for (let i = 0; i < maxRetries; i++) {
+          // if a later tick of the context populates progress, findFirstUncompleted will change
+          const pNext = findFirstUncompleted(data.videos?.length || 0);
+          if (pNext !== next) {
+            next = pNext;
+            break;
+          }
+          // small delay to allow context/async load
+          // eslint-disable-next-line no-await-in-loop
+          await new Promise((res) => setTimeout(res, 120));
+        }
+      }
       setIndex(next);
     };
     fetch();
     // eslint-disable-next-line
   }, [id]);
 
-  if (!pl) return <div>Loading...</div>;
+  // scroll current item into view whenever playlist / index changes
+  useEffect(() => {
+    if (!pl || index === null) return;
+    const el = itemRefs.current[index];
+    if (el && listRef.current) {
+      const doScroll = () => {
+        try {
+          el.scrollIntoView({ behavior: "smooth", block: "start" });
+        } catch {
+          listRef.current.scrollTop = el.offsetTop;
+        }
+        listRef.current.scrollTop = el.offsetTop;
+      };
+      // try to wait for refs to be attached
+      if (typeof requestAnimationFrame !== "undefined") {
+        requestAnimationFrame(() => {
+          // if ref isn't ready yet, give one micro-delay
+          if (!itemRefs.current[index]) setTimeout(doScroll, 50);
+          else doScroll();
+        });
+      } else {
+        setTimeout(doScroll, 50);
+      }
+    } else {
+      // if ref not found yet, retry shortly
+      const t = setTimeout(() => {
+        if (itemRefs.current[index] && listRef.current) {
+          try {
+            itemRefs.current[index].scrollIntoView({
+              behavior: "smooth",
+              block: "start",
+            });
+            listRef.current.scrollTop = itemRefs.current[index].offsetTop;
+          } catch {}
+        }
+      }, 80);
+      return () => clearTimeout(t);
+    }
+  }, [index, pl]);
+
+  if (!pl || index === null) return <div>Loading...</div>;
 
   const video = pl.videos?.[index];
   const prog = getProgress(id).videos?.[index] || {};
   const start = Math.max(0, Math.floor(prog.seconds || 0));
-  // build youtube embed src if video has videoId
   const src = video?.videoId
     ? `https://www.youtube.com/embed/${video.videoId}?start=${start}&autoplay=1&rel=0`
     : null;
@@ -36,8 +106,8 @@ const PlaylistPage = () => {
       completed: true,
       title: video?.title,
     });
-    // move to next
-    const next = Math.min((pl.videos?.length || 1) - 1, index + 1);
+    // compute next uncompleted index after marking done
+    const next = findFirstUncompleted(pl.videos?.length || 0);
     setIndex(next);
   };
 
@@ -73,7 +143,6 @@ const PlaylistPage = () => {
           <button
             className="btn"
             onClick={() => {
-              // quick save current start (example: 30s) — in a real player you'd read current time
               savePosition(start + 30);
               alert("Saved position (+30s) for demo");
             }}
@@ -85,11 +154,15 @@ const PlaylistPage = () => {
 
       <div>
         <h3 className="font-semibold">Up next</h3>
-        <ul className="mt-2 space-y-2">
+        <ul ref={listRef} className="mt-2 space-y-2 max-h-96 overflow-y-auto">
           {pl.videos?.map((v, i) => (
-            <li key={v.videoId} className={i === index ? "font-bold" : ""}>
+            <li
+              key={v.videoId || i}
+              ref={(el) => (itemRefs.current[i] = el)}
+              className={`p-2 ${i === index ? "font-bold" : ""}`}
+            >
               <button
-                className="text-left"
+                className="text-left w-full text-left"
                 onClick={() => {
                   setIndex(i);
                 }}
